@@ -47,19 +47,17 @@ class LintriageHelper:
     def print_header(self):
         """Print beautiful header"""
         print(f"\n{Colors.BOLD}{Colors.CYAN}")
-        print("╔════════════════════════════════════════════════════════════╗")
-        print("║                                                            ║")
-        print("║     " + Colors.MAGENTA + "██╗     ██╗███╗   ██╗████████╗██████╗  █████╗ ██╗ ██████╗ ███████╗" + Colors.CYAN + "     ║")
-        print("║     " + Colors.MAGENTA + "██║     ██║████╗  ██║╚══██╔══╝██╔══██╗██╔══██╗██║██╔═══██╗██╔════╝" + Colors.CYAN + "     ║")
-        print("║     " + Colors.MAGENTA + "██║     ██║██╔██╗ ██║   ██║   ██████╔╝███████║██║██║   ██║█████╗  " + Colors.CYAN + "     ║")
-        print("║     " + Colors.MAGENTA + "██║     ██║██║╚██╗██║   ██║   ██╔══██╗██╔══██║██║██║   ██║██╔══╝  " + Colors.CYAN + "     ║")
-        print("║     " + Colors.MAGENTA + "███████╗██║██║ ╚████║   ██║   ██║  ██║██║  ██║██║╚██████╔╝███████╗" + Colors.CYAN + "     ║")
-        print("║     " + Colors.MAGENTA + "╚══════╝╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚══════╝" + Colors.CYAN + "     ║")
-        print("║                                                            ║")
-        print("║     " + Colors.YELLOW + "Build Server & Management Helper" + Colors.CYAN + "                    ║")
-        print("║     " + Colors.DIM + "Serve and manage Lintriage builds" + Colors.CYAN + "                      ║")
-        print("║                                                            ║")
-        print("╚════════════════════════════════════════════════════════════╝")
+        print("""
+          ██      ██ ███    ██ ████████ ██████  ██  █████   ██████  ███████ 
+          ██      ██ ████   ██    ██    ██   ██ ██ ██   ██ ██       ██      
+          ██      ██ ██ ██  ██    ██    ██████  ██ ███████ ██   ███ █████   
+          ██      ██ ██  ██ ██    ██    ██   ██ ██ ██   ██ ██    ██ ██      
+          ███████ ██ ██   ████    ██    ██   ██ ██ ██   ██  ██████  ███████ 
+                                                                                                                  
+        Linux Privilege Escalation Auto-Triage Tool              
+        Focused enumeration without the noise  
+        """)
+
         print(f"{Colors.RESET}\n")
     
     def print_box(self, title, content_lines, color=Colors.CYAN):

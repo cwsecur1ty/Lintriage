@@ -74,53 +74,71 @@ check_suid_binaries() {
     # Known dangerous SUID binaries
     dangerous_suid="nmap vim nano find bash less more cp mv python python3 perl ruby awk sed tar zip unzip gzip gunzip"
     
-    # Find SUID binaries with timeout
+    # Find SUID binaries using the classic method
     suid_binaries=$(timeout 30 find / -perm -4000 -type f 2>/dev/null)
     
     if [ $? -eq 124 ]; then
         add_result "INFO" "SUID Binary" "SUID check timed out" "System may be slow or find command restricted"
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}SUID binaries${RESET} ${DIM}[timeout]${RESET}\n"
         return
     fi
     
     if [ -z "$suid_binaries" ]; then
         add_result "INFO" "SUID Binary" "No SUID binaries found or access denied" ""
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}SUID binaries${RESET} ${DIM}[none found]${RESET}\n"
         return
     fi
     
     while IFS= read -r binary; do
-        if [ -f "$binary" ]; then
+        if [ -f "$binary" ] && [ -r "$binary" ]; then
             bin_name=$(basename "$binary")
             is_dangerous=false
             
+            # Get binary details
+            bin_owner=$(stat -c "%U" "$binary" 2>/dev/null || ls -ld "$binary" 2>/dev/null | awk '{print $3}')
+            bin_perms=$(stat -c "%a" "$binary" 2>/dev/null || ls -ld "$binary" 2>/dev/null | awk '{print $1}')
+            bin_size=$(stat -c "%s" "$binary" 2>/dev/null || ls -lh "$binary" 2>/dev/null | awk '{print $5}')
+            
+            # Build details string
+            details="Binary: $bin_name"
+            if [ -n "$bin_owner" ]; then
+                details="$details | Owner: $bin_owner"
+            fi
+            if [ -n "$bin_perms" ]; then
+                details="$details | Perms: $bin_perms"
+            fi
+            if [ -n "$bin_size" ]; then
+                details="$details | Size: $bin_size"
+            fi
+            
+            # Check if it's in the dangerous list
             for dangerous in $dangerous_suid; do
                 if [ "$bin_name" = "$dangerous" ]; then
-                    add_result "HIGH" "SUID Binary" "Dangerous SUID binary found: $binary" "Binary: $bin_name - Known to be exploitable"
+                    details="$details | Known to be exploitable"
+                    add_result "HIGH" "SUID Binary" "Dangerous SUID binary: $binary" "$details"
                     is_dangerous=true
                     break
                 fi
             done
             
             if [ "$is_dangerous" = false ]; then
-                add_result "MEDIUM" "SUID Binary" "SUID binary found: $binary" "Binary: $bin_name - Review for exploitation potential"
+                # Check if it's writable (even more dangerous)
+                if [ -w "$binary" ] 2>/dev/null; then
+                    details="$details | Writable!"
+                    add_result "HIGH" "SUID Binary" "Writable SUID binary: $binary" "$details"
+                else
+                    add_result "MEDIUM" "SUID Binary" "SUID binary: $binary" "$details"
+                fi
             fi
         fi
     done <<< "$suid_binaries"
     
-    local high_before=${#HIGH_RESULTS[@]}
-    local medium_before=${#MEDIUM_RESULTS[@]}
-    local count=$((high_before + medium_before))
-    
-    # Count new results (this is approximate since arrays are global)
-    if [ $count -gt 0 ]; then
-        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}SUID binaries${RESET} ${GREEN}[completed]${RESET}\n"
-    else
-        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}SUID binaries${RESET} ${DIM}[completed]${RESET}\n"
-    fi
+    echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}SUID binaries${RESET} ${GREEN}[completed]${RESET}\n"
 }
 
-# Check writable cron jobs
+# Check cron jobs
 check_writable_cron() {
-    show_progress "Checking writable cron jobs"
+    show_progress "Checking cron jobs"
     
     cron_paths=(
         "/etc/crontab"
@@ -138,21 +156,59 @@ check_writable_cron() {
             if [ -d "$cron_path" ]; then
                 # Check if directory is writable
                 if [ -w "$cron_path" ]; then
-                    add_result "HIGH" "Writable Cron" "Writable cron directory: $cron_path" "You can create cron jobs here for privilege escalation"
+                    add_result "HIGH" "Writable Cron Directory" "Writable cron directory: $cron_path" "You can create cron jobs here for privilege escalation"
                 fi
                 
                 # Check files in directory
                 if [ -r "$cron_path" ]; then
-                    find "$cron_path" -type f 2>/dev/null | while read -r file_path; do
-                        if [ -w "$file_path" ] 2>/dev/null; then
-                            add_result "HIGH" "Writable Cron" "Writable cron file: $file_path" "You can modify this cron job for privilege escalation"
+                    while IFS= read -r file_path; do
+                        if [ -f "$file_path" ]; then
+                            # Check if writable
+                            if [ -w "$file_path" ] 2>/dev/null; then
+                                # Read cron content (show schedule and command)
+                                cron_content=$(cat "$file_path" 2>/dev/null | grep -v "^#" | grep -v "^$" | head -5 | sed 's/^/  /')
+                                if [ -n "$cron_content" ]; then
+                                    add_result "HIGH" "Writable Cron File" "Writable cron file: $file_path" "You can modify this cron job. Current jobs:\n$cron_content"
+                                else
+                                    add_result "HIGH" "Writable Cron File" "Writable cron file: $file_path" "You can create cron jobs here for privilege escalation"
+                                fi
+                            else
+                                # Readable but not writable - show info
+                                if [ -r "$file_path" ]; then
+                                    cron_content=$(cat "$file_path" 2>/dev/null | grep -v "^#" | grep -v "^$" | head -5 | sed 's/^/  /')
+                                    if [ -n "$cron_content" ]; then
+                                        # Check if any jobs run as root
+                                        if grep -qE "^[^#]*root|^[^#]*[[:space:]]+root[[:space:]]" "$file_path" 2>/dev/null; then
+                                            add_result "MEDIUM" "Cron File (Root)" "Cron file with root jobs: $file_path" "Contains root cron jobs:\n$cron_content"
+                                        else
+                                            add_result "INFO" "Cron File" "Cron file found: $file_path" "Jobs:\n$cron_content"
+                                        fi
+                                    fi
+                                fi
+                            fi
                         fi
-                    done
+                    done < <(find "$cron_path" -type f 2>/dev/null)
                 fi
             else
                 # Check if file is writable
                 if [ -w "$cron_path" ]; then
-                    add_result "HIGH" "Writable Cron" "Writable cron file: $cron_path" "You can modify this cron job for privilege escalation"
+                    cron_content=$(cat "$cron_path" 2>/dev/null | grep -v "^#" | grep -v "^$" | head -10 | sed 's/^/  /')
+                    if [ -n "$cron_content" ]; then
+                        add_result "HIGH" "Writable Cron File" "Writable cron file: $cron_path" "You can modify this cron job. Current jobs:\n$cron_content"
+                    else
+                        add_result "HIGH" "Writable Cron File" "Writable cron file: $cron_path" "You can create cron jobs here for privilege escalation"
+                    fi
+                elif [ -r "$cron_path" ]; then
+                    # Readable system crontab
+                    cron_content=$(cat "$cron_path" 2>/dev/null | grep -v "^#" | grep -v "^$" | head -10 | sed 's/^/  /')
+                    if [ -n "$cron_content" ]; then
+                        # Check for root jobs
+                        if grep -qE "^[[:space:]]*[^#]*root|^[[:space:]]*[^#]*[[:space:]]+root[[:space:]]" "$cron_path" 2>/dev/null; then
+                            add_result "MEDIUM" "System Crontab (Root)" "System crontab with root jobs: $cron_path" "Contains root cron jobs:\n$cron_content"
+                        else
+                            add_result "INFO" "System Crontab" "System crontab: $cron_path" "Jobs:\n$cron_content"
+                        fi
+                    fi
                 fi
             fi
         fi
@@ -160,13 +216,38 @@ check_writable_cron() {
     
     # Check user crontabs
     if command -v crontab >/dev/null 2>&1; then
+        # Current user
         user_crontab=$(timeout 5 crontab -l 2>/dev/null)
         if [ $? -eq 0 ] && [ -n "$user_crontab" ]; then
-            add_result "INFO" "Cron Jobs" "User has cron jobs configured" "Cron jobs:\n$user_crontab"
+            # Filter out comments and empty lines
+            active_jobs=$(echo "$user_crontab" | grep -v "^#" | grep -v "^$" | sed 's/^/  /')
+            if [ -n "$active_jobs" ]; then
+                job_count=$(echo "$active_jobs" | wc -l)
+                add_result "INFO" "User Crontab" "Current user has $job_count cron job(s)" "Jobs:\n$active_jobs"
+            fi
+        fi
+        
+        # Check other users' crontabs if accessible
+        if [ -d "/var/spool/cron/crontabs" ] && [ -r "/var/spool/cron/crontabs" ]; then
+            for user_cron in /var/spool/cron/crontabs/*; do
+                if [ -f "$user_cron" ] && [ -r "$user_cron" ]; then
+                    username=$(basename "$user_cron")
+                    if [ "$username" != "$(whoami)" ]; then
+                        cron_content=$(cat "$user_cron" 2>/dev/null | grep -v "^#" | grep -v "^$" | head -5 | sed 's/^/  /')
+                        if [ -n "$cron_content" ]; then
+                            if [ -w "$user_cron" ] 2>/dev/null; then
+                                add_result "HIGH" "Writable User Crontab" "Writable crontab for user: $username" "You can modify this. Jobs:\n$cron_content"
+                            else
+                                add_result "INFO" "User Crontab" "Crontab for user: $username" "Jobs:\n$cron_content"
+                            fi
+                        fi
+                    fi
+                fi
+            done
         fi
     fi
     
-    echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Writable cron jobs${RESET} ${GREEN}[completed]${RESET}\n"
+    echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Cron jobs${RESET} ${GREEN}[completed]${RESET}\n"
 }
 
 # Check writable systemd services
@@ -370,6 +451,105 @@ check_kernel_exploits() {
     echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Kernel version${RESET} ${GREEN}[completed]${RESET}\n"
 }
 
+# Check for root-owned writable files
+check_root_writable_files() {
+    show_progress "Checking root-owned writable files"
+    
+    # Find root-owned files, then check if writable
+    # First get root-owned files, then filter by writability
+    root_files=$(timeout 30 find / -user root -type f 2>/dev/null | head -100)
+    
+    if [ $? -eq 124 ]; then
+        add_result "INFO" "Root Writable Files" "Root writable files check timed out" "System may be slow or find command restricted"
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Root writable files${RESET} ${DIM}[timeout]${RESET}\n"
+        return
+    fi
+    
+    if [ $? -eq 124 ]; then
+        add_result "INFO" "Root Writable Files" "Root writable files check timed out" "System may be slow or find command restricted"
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Root writable files${RESET} ${DIM}[timeout]${RESET}\n"
+        return
+    fi
+    
+    if [ -z "$root_files" ]; then
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Root writable files${RESET} ${DIM}[none found]${RESET}\n"
+        return
+    fi
+    
+    # Filter out common false positives
+    exclude_paths="/proc /sys /dev /run /tmp"
+    
+    count=0
+    while IFS= read -r file_path; do
+        # Skip excluded paths
+        skip=false
+        for exclude in $exclude_paths; do
+            if [[ "$file_path" == "$exclude"* ]]; then
+                skip=true
+                break
+            fi
+        done
+        
+        if [ "$skip" = true ]; then
+            continue
+        fi
+        
+        # Check if file is writable by current user
+        if [ -f "$file_path" ] && [ -w "$file_path" ] 2>/dev/null; then
+            count=$((count + 1))
+            
+            # Get file details
+            file_perms=$(stat -c "%a" "$file_path" 2>/dev/null || ls -ld "$file_path" 2>/dev/null | awk '{print $1}')
+            file_size=$(stat -c "%s" "$file_path" 2>/dev/null || ls -lh "$file_path" 2>/dev/null | awk '{print $5}')
+            
+            # Check if it's in a sensitive location
+            sensitive_locations="/etc /usr/bin /usr/sbin /bin /sbin /opt /var"
+            is_sensitive=false
+            for loc in $sensitive_locations; do
+                if [[ "$file_path" == "$loc"* ]]; then
+                    is_sensitive=true
+                    break
+                fi
+            done
+            
+            # Build details
+            details="File: $file_path"
+            if [ -n "$file_perms" ]; then
+                details="$details | Perms: $file_perms"
+            fi
+            if [ -n "$file_size" ]; then
+                details="$details | Size: $file_size"
+            fi
+            
+            # Check if it's executable (even more dangerous)
+            if [ -x "$file_path" ] 2>/dev/null; then
+                details="$details | Executable!"
+                if [ "$is_sensitive" = true ]; then
+                    add_result "HIGH" "Root Writable File" "Writable root executable in sensitive location: $file_path" "$details"
+                else
+                    add_result "HIGH" "Root Writable File" "Writable root executable: $file_path" "$details"
+                fi
+            elif [ "$is_sensitive" = true ]; then
+                add_result "HIGH" "Root Writable File" "Writable root file in sensitive location: $file_path" "$details"
+            else
+                add_result "MEDIUM" "Root Writable File" "Writable root file: $file_path" "$details"
+            fi
+            
+            # Limit results to avoid spam
+            if [ $count -ge 20 ]; then
+                add_result "INFO" "Root Writable Files" "Found 20+ root-owned writable files" "Too many to display individually. Use: find / -user root -type f -writable 2>/dev/null"
+                break
+            fi
+        fi
+    done <<< "$root_files"
+    
+    if [ $count -gt 0 ]; then
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Root writable files${RESET} ${GREEN}[found $count]${RESET}\n"
+    else
+        echo -ne "\r${GREEN}${CHECK}${RESET} ${BOLD}Root writable files${RESET} ${DIM}[none found]${RESET}\n"
+    fi
+}
+
 # Print results
 print_results() {
     echo -e "\n"
@@ -481,6 +661,7 @@ main() {
     check_capabilities
     check_interesting_files
     check_kernel_exploits
+    check_root_writable_files
     
     echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"
     echo -e "${GREEN}${CHECK}${RESET} ${BOLD}All checks completed!${RESET}\n"

