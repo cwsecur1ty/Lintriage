@@ -2,16 +2,7 @@
 
 **Linux Privilege Escalation Auto-Triage Tool**
 
-Focused Linux priv esc enumeration - no fluff, just the checks that matter. Outputs findings in HIGH/MEDIUM/INFO format with nice colors.
-
-## What it checks
-
-- **SUID binaries** - Finds setuid binaries, flags dangerous ones
-- **Writable cron jobs** - Looks for writable cron files/directories  
-- **Writable systemd services** - Checks for writable service files
-- **Linux capabilities** - Finds files with dangerous capabilities
-- **Interesting files** - Scans for .bak, .old, .conf and other sensitive files
-- **Kernel version** - Checks if kernel version has known exploits
+Focused Linux priv esc enumeration - no fluff. Outputs findings in HIGH/MEDIUM/INFO format with nice colours!
 
 ## Quick Start
 
@@ -88,8 +79,8 @@ Lintriage/
 └── LICENSE
 ```
 
-- `lintriage.py` - Run this on your machine to serve the script
-- `builds/lintriage.sh` - This is what gets downloaded and run on the target
+- `lintriage.py` - Run this on your machine as a helper, can also just serve the `.sh` file with a python3 http server.
+- `builds/lintriage.sh` - The enumeration script.
 
 ## Quick start
 
@@ -102,3 +93,4 @@ That's it. No manual file uploads, no installing dependencies on the target.
 ## License
 
 See LICENSE file for details.
+
